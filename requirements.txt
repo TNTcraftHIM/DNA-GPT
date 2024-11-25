@@ -1,7 +1,8 @@
 rouge-score
 transformers>=4.28.1
 openai
-sklearn
+scikit-learn
 torch
 nltk
 spacy
+gradio
