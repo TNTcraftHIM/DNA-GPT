@@ -389,60 +389,22 @@ def detection(text, option):
 
 def process_p_values_and_labels_odd(answer_labels, results_list):
     # 计算 AUROC
-    auroc = roc_auc_score(answer_labels, results_list)
+    all_auroc = roc_auc_score(answer_labels, results_list)
     fpr, tpr, thresholds = roc_curve(answer_labels, results_list)
-    accs = {th: tpr[np.argwhere(fpr <= th).max()] for th in [0.01, 0.05, 0.1]}
-    print("auroc: {:.4f}; ".format(auroc) + "; ".join(
-        ["TPR: {:.4f} @ FPR={:.4f}".format(v, k) for k, v in accs.items()]))
+    all_avg_fpr = np.mean(fpr)
+    all_avg_tpr = np.mean(tpr)
+    all_std_fpr = np.std(fpr)
+    all_std_tpr = np.std(tpr)
 
-    return auroc
+    # 打印结果
+    print(
+        "ALL_AUROC: {:.4f}; ALL_AVG_FPR: {:.4f}; ALL_STD_FPR: {:.4f}; ALL_AVG_TPR: {:.4f}; ALL_STD_TPR: {:.4f}".format(
+            all_auroc, all_avg_fpr, all_std_fpr, all_avg_tpr, all_std_tpr))
 
-
-def process_p_values_and_labels(answer_labels, results_list):
-    # 初始化 AUROC 列表
-    auroc_list = []
-
-    # 确保标签和结果列表长度匹配
-    assert len(answer_labels) == len(results_list)
-
-    # 用于记录已配对的索引
-    used_indices = set()
-
-    # 处理每对标签
-    for i in range(len(answer_labels)):
-        if i in used_indices:
-            continue
-
-        # 当前标签
-        current_label = answer_labels[i]
-
-        # 找到下一个未使用的相反标签的索引
-        for j in range(len(answer_labels)):
-            if answer_labels[j] != current_label and j not in used_indices:
-                # 获取当前对的 p 值
-                p_values_0 = [results_list[i] if current_label == 0 else results_list[j]]
-                p_values_1 = [results_list[j] if current_label == 0 else results_list[i]]
-
-                # 合并 p 值和标签
-                combined_p_values = p_values_0 + p_values_1
-                combined_labels = [0] * len(p_values_0) + [1] * len(p_values_1)
-
-                # 计算 AUROC
-                auroc = round(roc_auc_score(combined_labels, combined_p_values), 6)
-                fpr, tpr, thresholds = roc_curve(combined_labels, combined_p_values)
-                accs = {th: tpr[np.argwhere(fpr <= th).max()] for th in [0.01, 0.05, 0.1]}
-                auroc_list.append(auroc)
-                # print("auroc: {:.4f}; ".format(auroc) + "; ".join(
-                #     ["TPR: {:.4f} @ FPR={:.4f}".format(v, k) for k, v in accs.items()]))
-
-                # 标记已使用的索引
-                used_indices.update([i, j])
-                break
-
-    return auroc_list
+    return all_auroc, all_avg_fpr, all_std_fpr, all_avg_tpr, all_std_tpr
 
 
-def generate_html(key, option, text ):
+def generate_html(key, option,):
     """prepare html format content for decision of DNA-GPT detection tool
     Args:
     key: key for access openai API, visit https://platform.openai.com/account/api-keys to check keys
@@ -462,17 +424,15 @@ def generate_html(key, option, text ):
         res, max_over_lap_generatedtext, score = detection(text, option)
         results.append(score)
     # calculate the AUROC
-    auroc_list = process_p_values_and_labels(answer_labels, results)
-    all_auroc = process_p_values_and_labels_odd(answer_labels, results)
-    print("avg_auroc: {:.4f}".format(sum(auroc_list) / len(auroc_list))
-          + "; ".join(["std_auroc: {:.4f}".format(np.std(auroc_list))]))
-    print("all_auroc: ", all_auroc)
-    print("auroc_list: ", auroc_list)
+    all_auroc, all_avg_fpr, all_std_fpr, all_avg_tpr, all_std_tpr = process_p_values_and_labels_odd(
+        answer_labels, results)
+
     html_text = "<h3>" + label + "</h3>"
-    html_text += "<p>avg_auroc: {:.4f}".format(sum(auroc_list) / len(auroc_list)) + "; ".join(
-        ["std_auroc: {:.4f}".format(np.std(auroc_list))]) + "</p>"
-    html_text += "<p>all_auroc: " + str(all_auroc) + "</p>"
-    html_text += "<p>auroc_list: " + str(auroc_list) + "</p>"
+    html_text += "<p> The AUROC of the DNA-GPT detection tool is: " + str(all_auroc) + "</p>"
+    html_text += "<p> The average FPR of the DNA-GPT detection tool is: " + str(all_avg_fpr) + "</p>"
+    html_text += "<p> The standard deviation of FPR of the DNA-GPT detection tool is: " + str(all_std_fpr) + "</p>"
+    html_text += "<p> The average TPR of the DNA-GPT detection tool is: " + str(all_avg_tpr) + "</p>"
+    html_text += "<p> The standard deviation of TPR of the DNA-GPT detection tool is: " + str(all_std_tpr) + "</p>"
     return html_text
 
 
@@ -481,9 +441,6 @@ def main():
     # label="Enter your key for OpenAI access:", lines=1)
     input_key = components.Textbox(
         type="text", label="Enter your key for OpenAI access:")
-
-    input_text = components.Textbox(
-        type="text", label="Enter your text (Ideally between 180 and 300 words)")
     
     # input_text = gr.inputs.Textbox(
     #     label="Enter your text (Ideally between 180 and 300 words)", lines=20)
@@ -495,11 +452,11 @@ def main():
     radio = components.Radio(
         radio_options, label="Please choose one version to check:")
 
-    input_group = [input_key, radio, input_text]
+    input_group = [input_key, radio]
 
     greet_output = gr.outputs.Textbox(label="Detection Output:")
 
-    interface = gr.Interface(fn=generate_html, inputs=input_group, title="DNA-GPT Demo (NEC Labs America)",
+    interface = gr.Interface(fn=generate_html, inputs=input_group, title="DNA-GPT Demo (NEC Labs America) - Local CSV Detection",
                             outputs=gr.outputs.HTML(), description=copyright)
 
     interface.launch(share=False)
