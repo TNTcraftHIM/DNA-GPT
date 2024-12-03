@@ -417,7 +417,7 @@ def generate_html(key, option,):
     openai_key = key
     openai.api_key = openai_key
     label = "Detection Output: "
-    csv = pandas.read_csv('data/test_data.csv')
+    csv = pandas.read_csv('data/test_data.csv', encoding='utf-8')
     answer_labels = [1 if 'MGT' in label else 0 for label in csv['label']]
     results = []
     for text in csv['text']:
